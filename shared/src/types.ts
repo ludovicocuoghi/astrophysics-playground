@@ -1,5 +1,30 @@
 export type CelestialKind = "star" | "terrestrial" | "gas-giant" | "ice-giant";
 
+export type KeplerianOrbit = {
+  semiMajorAxisAu: number;
+  semiMajorAxisRateAuCy: number;
+  eccentricity: number;
+  eccentricityRateCy: number;
+  inclinationDeg: number;
+  inclinationRateDegCy: number;
+  meanLongitudeDeg: number;
+  meanLongitudeRateDegCy: number;
+  longitudePerihelionDeg: number;
+  longitudePerihelionRateDegCy: number;
+  longitudeAscendingNodeDeg: number;
+  longitudeAscendingNodeRateDegCy: number;
+};
+
+export type NaturalSatellite = {
+  id: string;
+  parentId: string;
+  name: string;
+  radiusKm: number;
+  semiMajorAxisKm: number;
+  orbitalPeriodDays: number;
+  color: string;
+};
+
 export type SolarBody = {
   id: string;
   name: string;
@@ -16,6 +41,7 @@ export type SolarBody = {
   axialTiltDeg: number;
   rotationPeriodHours: number;
   densityKgM3: number;
+  orbit?: KeplerianOrbit;
   overview: string;
 };
 

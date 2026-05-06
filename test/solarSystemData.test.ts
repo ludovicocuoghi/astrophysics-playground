@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { solarBodies } from "../shared/src/solarSystem";
+import { heliocentricPositionAu, radiusAu } from "../shared/src/orbits";
+import { naturalSatellites, solarBodies } from "../shared/src/solarSystem";
 
 describe("solar-system data", () => {
   it("includes the Sun and all eight planets in order", () => {
@@ -29,6 +30,7 @@ describe("solar-system data", () => {
         expect(body.orbitalSpeedKmS, `${body.name} orbital speed`).toBeGreaterThan(0);
         expect(body.eccentricity, `${body.name} eccentricity`).toBeGreaterThanOrEqual(0);
         expect(body.eccentricity, `${body.name} eccentricity`).toBeLessThan(1);
+        expect(body.orbit, `${body.name} JPL orbit`).toBeDefined();
       }
     }
   });
@@ -40,5 +42,19 @@ describe("solar-system data", () => {
     expect(neptune.semiMajorAxisAu).toBeGreaterThan(earth.semiMajorAxisAu);
     expect(neptune.orbitalPeriodDays).toBeGreaterThan(earth.orbitalPeriodDays);
     expect(neptune.orbitalSpeedKmS).toBeLessThan(earth.orbitalSpeedKmS);
+  });
+
+  it("computes date-based heliocentric positions inside each planet orbit range", () => {
+    for (const body of solarBodies.filter((item) => item.id !== "sun")) {
+      const r = radiusAu(heliocentricPositionAu(body, 0));
+      expect(r, `${body.name} J2000 radius`).toBeGreaterThan(body.semiMajorAxisAu * (1 - body.eccentricity) * 0.995);
+      expect(r, `${body.name} J2000 radius`).toBeLessThan(body.semiMajorAxisAu * (1 + body.eccentricity) * 1.005);
+    }
+  });
+
+  it("includes visible moon systems for close planet focus", () => {
+    expect(naturalSatellites.some((moon) => moon.parentId === "earth" && moon.name === "Moon")).toBe(true);
+    expect(naturalSatellites.filter((moon) => moon.parentId === "jupiter").length).toBeGreaterThanOrEqual(4);
+    expect(naturalSatellites.filter((moon) => moon.parentId === "saturn").length).toBeGreaterThanOrEqual(3);
   });
 });

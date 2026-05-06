@@ -1,4 +1,45 @@
-import type { SolarBody } from "./types";
+import type { KeplerianOrbit, NaturalSatellite, SolarBody } from "./types";
+
+// NASA/JPL SSD low-accuracy Keplerian elements, Table 1, valid for 1800 AD - 2050 AD.
+// Earth uses the Earth-Moon barycenter row, which is the standard row provided by JPL.
+const jplOrbit = (
+  semiMajorAxisAu: number,
+  semiMajorAxisRateAuCy: number,
+  eccentricity: number,
+  eccentricityRateCy: number,
+  inclinationDeg: number,
+  inclinationRateDegCy: number,
+  meanLongitudeDeg: number,
+  meanLongitudeRateDegCy: number,
+  longitudePerihelionDeg: number,
+  longitudePerihelionRateDegCy: number,
+  longitudeAscendingNodeDeg: number,
+  longitudeAscendingNodeRateDegCy: number
+): KeplerianOrbit => ({
+  semiMajorAxisAu,
+  semiMajorAxisRateAuCy,
+  eccentricity,
+  eccentricityRateCy,
+  inclinationDeg,
+  inclinationRateDegCy,
+  meanLongitudeDeg,
+  meanLongitudeRateDegCy,
+  longitudePerihelionDeg,
+  longitudePerihelionRateDegCy,
+  longitudeAscendingNodeDeg,
+  longitudeAscendingNodeRateDegCy
+});
+
+const JPL_ORBITS = {
+  mercury: jplOrbit(0.38709927, 0.00000037, 0.20563593, 0.00001906, 7.00497902, -0.00594749, 252.2503235, 149472.67411175, 77.45779628, 0.16047689, 48.33076593, -0.12534081),
+  venus: jplOrbit(0.72333566, 0.0000039, 0.00677672, -0.00004107, 3.39467605, -0.0007889, 181.9790995, 58517.81538729, 131.60246718, 0.00268329, 76.67984255, -0.27769418),
+  earth: jplOrbit(1.00000261, 0.00000562, 0.01671123, -0.00004392, -0.00001531, -0.01294668, 100.46457166, 35999.37244981, 102.93768193, 0.32327364, 0, 0),
+  mars: jplOrbit(1.52371034, 0.00001847, 0.0933941, 0.00007882, 1.84969142, -0.00813131, -4.55343205, 19140.30268499, -23.94362959, 0.44441088, 49.55953891, -0.29257343),
+  jupiter: jplOrbit(5.202887, -0.00011607, 0.04838624, -0.00013253, 1.30439695, -0.00183714, 34.39644051, 3034.74612775, 14.72847983, 0.21252668, 100.47390909, 0.20469106),
+  saturn: jplOrbit(9.53667594, -0.0012506, 0.05386179, -0.00050991, 2.48599187, 0.00193609, 49.95424423, 1222.49362201, 92.59887831, -0.41897216, 113.66242448, -0.28867794),
+  uranus: jplOrbit(19.18916464, -0.00196176, 0.04725744, -0.00004397, 0.77263783, -0.00242939, 313.23810451, 428.48202785, 170.9542763, 0.40805281, 74.01692503, 0.04240589),
+  neptune: jplOrbit(30.06992276, 0.00026291, 0.00859048, 0.00005105, 1.77004347, 0.00035372, -55.12002969, 218.45945325, 44.96476227, -0.32241464, 131.78422574, -0.00508664)
+} as const;
 
 export const solarBodies: SolarBody[] = [
   {
@@ -26,14 +67,15 @@ export const solarBodies: SolarBody[] = [
     color: "#a59b8f",
     massKg: 3.3011e23,
     radiusKm: 2_439.7,
-    semiMajorAxisAu: 0.3871,
+    semiMajorAxisAu: JPL_ORBITS.mercury.semiMajorAxisAu,
     orbitalPeriodDays: 87.969,
     orbitalSpeedKmS: 47.36,
-    eccentricity: 0.2056,
-    inclinationDeg: 7.005,
+    eccentricity: JPL_ORBITS.mercury.eccentricity,
+    inclinationDeg: JPL_ORBITS.mercury.inclinationDeg,
     axialTiltDeg: 0.034,
     rotationPeriodHours: 1_407.6,
     densityKgM3: 5_427,
+    orbit: JPL_ORBITS.mercury,
     overview: "The fastest planet, close enough to the Sun that relativistic corrections become measurable."
   },
   {
@@ -44,14 +86,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#f4d28c",
     massKg: 4.8675e24,
     radiusKm: 6_051.8,
-    semiMajorAxisAu: 0.7233,
+    semiMajorAxisAu: JPL_ORBITS.venus.semiMajorAxisAu,
     orbitalPeriodDays: 224.701,
     orbitalSpeedKmS: 35.02,
-    eccentricity: 0.0068,
-    inclinationDeg: 3.394,
+    eccentricity: JPL_ORBITS.venus.eccentricity,
+    inclinationDeg: JPL_ORBITS.venus.inclinationDeg,
     axialTiltDeg: 177.36,
     rotationPeriodHours: -5_832.5,
     densityKgM3: 5_243,
+    orbit: JPL_ORBITS.venus,
     overview: "A near-Earth-sized planet with a dense atmosphere and slow retrograde rotation."
   },
   {
@@ -62,14 +105,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#8bd6ff",
     massKg: 5.9722e24,
     radiusKm: 6_371,
-    semiMajorAxisAu: 1,
+    semiMajorAxisAu: JPL_ORBITS.earth.semiMajorAxisAu,
     orbitalPeriodDays: 365.256,
     orbitalSpeedKmS: 29.78,
-    eccentricity: 0.0167,
-    inclinationDeg: 0,
+    eccentricity: JPL_ORBITS.earth.eccentricity,
+    inclinationDeg: JPL_ORBITS.earth.inclinationDeg,
     axialTiltDeg: 23.44,
     rotationPeriodHours: 23.934,
     densityKgM3: 5_514,
+    orbit: JPL_ORBITS.earth,
     overview: "The reference planet for the playground: edit radius, mass, orbit, and speed to test physics laws."
   },
   {
@@ -80,14 +124,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#f29a62",
     massKg: 6.4171e23,
     radiusKm: 3_389.5,
-    semiMajorAxisAu: 1.5237,
+    semiMajorAxisAu: JPL_ORBITS.mars.semiMajorAxisAu,
     orbitalPeriodDays: 686.98,
     orbitalSpeedKmS: 24.07,
-    eccentricity: 0.0934,
-    inclinationDeg: 1.85,
+    eccentricity: JPL_ORBITS.mars.eccentricity,
+    inclinationDeg: JPL_ORBITS.mars.inclinationDeg,
     axialTiltDeg: 25.19,
     rotationPeriodHours: 24.623,
     densityKgM3: 3_933,
+    orbit: JPL_ORBITS.mars,
     overview: "A terrestrial planet with a thin atmosphere and a slower, wider orbit than Earth."
   },
   {
@@ -98,14 +143,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#f6d6aa",
     massKg: 1.8982e27,
     radiusKm: 69_911,
-    semiMajorAxisAu: 5.2044,
+    semiMajorAxisAu: JPL_ORBITS.jupiter.semiMajorAxisAu,
     orbitalPeriodDays: 4_332.59,
     orbitalSpeedKmS: 13.07,
-    eccentricity: 0.0489,
-    inclinationDeg: 1.303,
+    eccentricity: JPL_ORBITS.jupiter.eccentricity,
+    inclinationDeg: JPL_ORBITS.jupiter.inclinationDeg,
     axialTiltDeg: 3.13,
     rotationPeriodHours: 9.925,
     densityKgM3: 1_326,
+    orbit: JPL_ORBITS.jupiter,
     overview: "The largest planet, massive enough to visibly dominate local gravity and orbital intuition."
   },
   {
@@ -116,14 +162,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#f4ddaa",
     massKg: 5.6834e26,
     radiusKm: 58_232,
-    semiMajorAxisAu: 9.5826,
+    semiMajorAxisAu: JPL_ORBITS.saturn.semiMajorAxisAu,
     orbitalPeriodDays: 10_759.22,
     orbitalSpeedKmS: 9.68,
-    eccentricity: 0.0565,
-    inclinationDeg: 2.485,
+    eccentricity: JPL_ORBITS.saturn.eccentricity,
+    inclinationDeg: JPL_ORBITS.saturn.inclinationDeg,
     axialTiltDeg: 26.73,
     rotationPeriodHours: 10.656,
     densityKgM3: 687,
+    orbit: JPL_ORBITS.saturn,
     overview: "A ringed gas giant; low density, large radius, and slow outer-planet orbital motion."
   },
   {
@@ -134,14 +181,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#a6f1f6",
     massKg: 8.6810e25,
     radiusKm: 25_362,
-    semiMajorAxisAu: 19.2184,
+    semiMajorAxisAu: JPL_ORBITS.uranus.semiMajorAxisAu,
     orbitalPeriodDays: 30_688.5,
     orbitalSpeedKmS: 6.80,
-    eccentricity: 0.0463,
-    inclinationDeg: 0.773,
+    eccentricity: JPL_ORBITS.uranus.eccentricity,
+    inclinationDeg: JPL_ORBITS.uranus.inclinationDeg,
     axialTiltDeg: 97.77,
     rotationPeriodHours: -17.24,
     densityKgM3: 1_271,
+    orbit: JPL_ORBITS.uranus,
     overview: "An ice giant tilted almost sideways, making it ideal for studying axial tilt and outer orbits."
   },
   {
@@ -152,14 +200,15 @@ export const solarBodies: SolarBody[] = [
     atmosphereColor: "#84a4ff",
     massKg: 1.02413e26,
     radiusKm: 24_622,
-    semiMajorAxisAu: 30.11,
+    semiMajorAxisAu: JPL_ORBITS.neptune.semiMajorAxisAu,
     orbitalPeriodDays: 60_182,
     orbitalSpeedKmS: 5.43,
-    eccentricity: 0.009,
-    inclinationDeg: 1.77,
+    eccentricity: JPL_ORBITS.neptune.eccentricity,
+    inclinationDeg: JPL_ORBITS.neptune.inclinationDeg,
     axialTiltDeg: 28.32,
     rotationPeriodHours: 16.11,
     densityKgM3: 1_638,
+    orbit: JPL_ORBITS.neptune,
     overview: "The farthest major planet, with a long orbit that makes scale and orbital speed immediately visible."
   }
 ];
@@ -171,3 +220,23 @@ export const earthDefaults = {
   orbitalSpeedKmS: 29.78,
   constantDensity: false
 };
+
+export const naturalSatellites: NaturalSatellite[] = [
+  { id: "moon", parentId: "earth", name: "Moon", radiusKm: 1_737.4, semiMajorAxisKm: 384_399, orbitalPeriodDays: 27.322, color: "#d8d8d2" },
+  { id: "phobos", parentId: "mars", name: "Phobos", radiusKm: 11.3, semiMajorAxisKm: 9_376, orbitalPeriodDays: 0.319, color: "#b69a86" },
+  { id: "deimos", parentId: "mars", name: "Deimos", radiusKm: 6.2, semiMajorAxisKm: 23_463, orbitalPeriodDays: 1.263, color: "#c5ad94" },
+  { id: "io", parentId: "jupiter", name: "Io", radiusKm: 1_821.6, semiMajorAxisKm: 421_700, orbitalPeriodDays: 1.769, color: "#f2d56b" },
+  { id: "europa", parentId: "jupiter", name: "Europa", radiusKm: 1_560.8, semiMajorAxisKm: 671_100, orbitalPeriodDays: 3.551, color: "#d8c6a6" },
+  { id: "ganymede", parentId: "jupiter", name: "Ganymede", radiusKm: 2_634.1, semiMajorAxisKm: 1_070_400, orbitalPeriodDays: 7.155, color: "#9c8f82" },
+  { id: "callisto", parentId: "jupiter", name: "Callisto", radiusKm: 2_410.3, semiMajorAxisKm: 1_882_700, orbitalPeriodDays: 16.689, color: "#77706a" },
+  { id: "enceladus", parentId: "saturn", name: "Enceladus", radiusKm: 252.1, semiMajorAxisKm: 237_948, orbitalPeriodDays: 1.37, color: "#edf5ff" },
+  { id: "rhea", parentId: "saturn", name: "Rhea", radiusKm: 763.8, semiMajorAxisKm: 527_108, orbitalPeriodDays: 4.518, color: "#c9c4b8" },
+  { id: "titan", parentId: "saturn", name: "Titan", radiusKm: 2_574.7, semiMajorAxisKm: 1_221_870, orbitalPeriodDays: 15.945, color: "#d6a55b" },
+  { id: "iapetus", parentId: "saturn", name: "Iapetus", radiusKm: 734.5, semiMajorAxisKm: 3_560_820, orbitalPeriodDays: 79.33, color: "#9c8c78" },
+  { id: "miranda", parentId: "uranus", name: "Miranda", radiusKm: 235.8, semiMajorAxisKm: 129_900, orbitalPeriodDays: 1.413, color: "#bfc2c3" },
+  { id: "ariel", parentId: "uranus", name: "Ariel", radiusKm: 578.9, semiMajorAxisKm: 191_020, orbitalPeriodDays: 2.52, color: "#d6d9dc" },
+  { id: "umbriel", parentId: "uranus", name: "Umbriel", radiusKm: 584.7, semiMajorAxisKm: 266_000, orbitalPeriodDays: 4.144, color: "#8f9295" },
+  { id: "titania", parentId: "uranus", name: "Titania", radiusKm: 788.9, semiMajorAxisKm: 435_910, orbitalPeriodDays: 8.706, color: "#c2b7a8" },
+  { id: "oberon", parentId: "uranus", name: "Oberon", radiusKm: 761.4, semiMajorAxisKm: 583_520, orbitalPeriodDays: 13.463, color: "#a99b8d" },
+  { id: "triton", parentId: "neptune", name: "Triton", radiusKm: 1_353.4, semiMajorAxisKm: 354_759, orbitalPeriodDays: -5.877, color: "#d7d5cf" }
+];

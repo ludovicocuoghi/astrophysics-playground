@@ -215,6 +215,36 @@ button {
   accent-color: #7df9ff;
 }
 
+.date-line {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.date-line span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #b8caea;
+  font-size: 12px;
+}
+
+.date-line strong {
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.date-line input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.24);
+  color: #ffffff;
+  color-scheme: dark;
+  padding: 0 10px;
+}
+
 .segmented {
   display: grid;
   grid-template-columns: 1fr;
@@ -226,6 +256,16 @@ button {
   min-height: 32px;
   padding: 0 10px;
   text-align: left;
+}
+
+.scale-note {
+  margin: -4px 0 8px;
+  border-radius: 7px;
+  padding: 8px 9px;
+  background: rgba(125, 249, 255, 0.08);
+  color: #b9cdea;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .check-line {

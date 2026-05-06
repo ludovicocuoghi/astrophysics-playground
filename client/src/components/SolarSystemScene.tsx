@@ -1,9 +1,11 @@
 import { Html, OrbitControls, Stars } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import type { ScaleMode } from "../../../shared/src/constants";
 import { SCALE_OPTIONS } from "../../../shared/src/constants";
+import { heliocentricPositionAu, orbitalPathAu, type Vector3Au } from "../../../shared/src/orbits";
+import { naturalSatellites } from "../../../shared/src/solarSystem";
 import type { BlackHoleState, EditedEarthState, SolarBody } from "../../../shared/src/types";
 
 type SceneMode = "solar" | "black-hole";
@@ -20,11 +22,13 @@ type Props = {
   powerSave: boolean;
   earth: EditedEarthState;
   blackHole: BlackHoleState;
+  focusToken: number;
   onSelectBody: (id: string) => void;
 };
 
 export function AstrophysicaScene(props: Props) {
   const [warmup, setWarmup] = useState(true);
+  const controlsRef = useRef<any>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setWarmup(false), props.powerSave ? 900 : 1600);
@@ -46,14 +50,16 @@ export function AstrophysicaScene(props: Props) {
       <directionalLight position={[18, 26, 16]} intensity={1.5} color="#dbe9ff" />
       <Stars radius={320} depth={100} count={props.powerSave ? 550 : 1800} factor={4} fade speed={props.isPlaying && !props.powerSave ? 0.18 : 0} />
       <DemandRenderPulse
-        depsKey={`${props.mode}:${props.selectedId}:${props.scaleMode}:${props.showLabels}:${props.showVectors}:${props.isPlaying}:${props.powerSave}`}
+        depsKey={`${props.mode}:${props.selectedId}:${props.scaleMode}:${props.showLabels}:${props.showVectors}:${props.isPlaying}:${props.powerSave}:${Math.round(props.simDays * 10)}`}
         pulses={props.powerSave ? 4 : 8}
       />
       <SceneContents {...props} />
+      <SceneCameraFocus {...props} controlsRef={controlsRef} />
       <OrbitControls
+        ref={controlsRef}
         enableDamping
         dampingFactor={0.05}
-        minDistance={12}
+        minDistance={2}
         maxDistance={460}
         makeDefault
       />
@@ -85,6 +91,57 @@ function SceneContents(props: Props) {
   return props.mode === "solar" ? <SolarSystem {...props} /> : <BlackHoleLab {...props} />;
 }
 
+function SceneCameraFocus({
+  bodies,
+  selectedId,
+  mode,
+  simDays,
+  scaleMode,
+  earth,
+  focusToken,
+  controlsRef
+}: Props & { controlsRef: RefObject<any> }) {
+  const camera = useThree((state) => state.camera);
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    if (mode === "black-hole") {
+      const target = new THREE.Vector3(0, 2, 0);
+      camera.position.set(0, 25, 58);
+      camera.near = 0.03;
+      camera.updateProjectionMatrix();
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(target);
+        controlsRef.current.update();
+      }
+      invalidate();
+      return;
+    }
+    if (focusToken === 0) return;
+    const scale = SCALE_OPTIONS.find((item) => item.id === scaleMode) || SCALE_OPTIONS[0];
+    const body = bodies.find((item) => item.id === selectedId);
+    if (!body) return;
+    const displayBody = body.id === "earth" ? editedEarthBody(body, earth) : body;
+    const target =
+      body.id === "sun"
+        ? new THREE.Vector3(0, 0, 0)
+        : new THREE.Vector3(...displayOrbitPositionFromAu(heliocentricPositionAu(displayBody, simDays), displayBody, scale.distanceScale));
+    const radius = body.id === "sun" ? 3.6 : visualRadius(displayBody);
+    const distance = body.id === "sun" ? 24 : Math.max(6, radius * 9 + moonFocusRadius(displayBody) * 0.72);
+    const offset = new THREE.Vector3(distance * 0.72, distance * 0.42, distance);
+    camera.position.copy(target.clone().add(offset));
+    camera.near = 0.03;
+    camera.updateProjectionMatrix();
+    if (controlsRef.current) {
+      controlsRef.current.target.copy(target);
+      controlsRef.current.update();
+    }
+    invalidate();
+  }, [bodies, camera, controlsRef, earth, focusToken, invalidate, mode, scaleMode, selectedId, simDays]);
+
+  return null;
+}
+
 function SolarSystem({
   bodies,
   selectedId,
@@ -111,6 +168,7 @@ function SolarSystem({
             selected={selectedId === "sun"}
             showLabel={showLabels}
             powerSave={powerSave}
+            simDays={simDays}
             onSelect={() => onSelectBody("sun")}
           />
         ) : null}
@@ -120,50 +178,44 @@ function SolarSystem({
         </mesh>
       </group>
 
-      {planets.map((body, index) => {
+      {planets.map((body) => {
         const displayBody =
           body.id === "earth"
-            ? {
-                ...body,
-                massKg: earth.massKg,
-                radiusKm: earth.radiusKm,
-                semiMajorAxisAu: earth.orbitalDistanceAu,
-                orbitalSpeedKmS: earth.orbitalSpeedKmS
-              }
+            ? editedEarthBody(body, earth)
             : body;
-        const orbitRadius = orbitScale(displayBody.semiMajorAxisAu, scale.distanceScale);
-        const angle = body.orbitalPeriodDays
-          ? (simDays / body.orbitalPeriodDays) * Math.PI * 2 + index * 0.72
-          : 0;
-        const e = body.eccentricity;
-        const x = orbitRadius * (Math.cos(angle) - e * 0.4);
-        const z = orbitRadius * Math.sqrt(Math.max(0.05, 1 - e ** 2)) * Math.sin(angle);
-        const y = Math.sin(body.inclinationDeg * (Math.PI / 180)) * Math.sin(angle) * 3;
+        const orbitPath = orbitalPathAu(displayBody, simDays, powerSave ? 160 : 260).map((point) => displayOrbitPositionFromAu(point, displayBody, scale.distanceScale));
+        const currentPosition = displayOrbitPositionFromAu(heliocentricPositionAu(displayBody, simDays), displayBody, scale.distanceScale);
+        const nextPosition = displayOrbitPositionFromAu(heliocentricPositionAu(displayBody, simDays + 1), displayBody, scale.distanceScale);
         const radius = visualRadius(displayBody);
-        const velocityVector = tangentVector(angle, body.orbitalSpeedKmS / 5.5);
+        const velocityVector = new THREE.Vector3(
+          nextPosition[0] - currentPosition[0],
+          nextPosition[1] - currentPosition[1],
+          nextPosition[2] - currentPosition[2]
+        )
+          .normalize()
+          .multiplyScalar(Math.max(1.5, body.orbitalSpeedKmS / 4.8));
 
         return (
           <group key={body.id}>
             <OrbitLine
-              radius={orbitRadius}
-              eccentricity={e}
+              points={orbitPath}
               color={selectedId === body.id ? "#ffffff" : body.color}
               selected={selectedId === body.id}
-              powerSave={powerSave}
             />
             <PlanetMesh
               body={displayBody}
-              position={[x, y, z]}
+              position={currentPosition}
               radius={radius}
               selected={selectedId === body.id}
               showLabel={showLabels}
               powerSave={powerSave}
+              simDays={simDays}
               onSelect={() => onSelectBody(body.id)}
             />
             {showVectors ? (
               <VelocityVector
-                start={[x, y + radius + 0.18, z]}
-                vector={[velocityVector[0], 0, velocityVector[1]]}
+                start={[currentPosition[0], currentPosition[1] + radius + 0.18, currentPosition[2]]}
+                vector={[velocityVector.x, velocityVector.y, velocityVector.z]}
                 color={body.id === "earth" ? "#7df9ff" : "#a8ffcb"}
               />
             ) : null}
@@ -180,8 +232,138 @@ function BlackHoleLab({ blackHole, powerSave }: Props) {
   const lensStrength = THREE.MathUtils.clamp(2 / impact, 0.035, 0.72);
 
   return (
-    <group position={[0, 6, -8]}>
-      <CinematicBlackHole strength={lensStrength} powerSave={powerSave} />
+    <group position={[0, 2, 0]} scale={1.55}>
+      <BlackHoleSystem3D strength={lensStrength} powerSave={powerSave} />
+    </group>
+  );
+}
+
+function BlackHoleSystem3D({ strength, powerSave }: { strength: number; powerSave: boolean }) {
+  const diskRef = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (diskRef.current && !powerSave) diskRef.current.rotation.z += delta * 0.035;
+  });
+
+  const segments = powerSave ? 64 : 128;
+  return (
+    <group>
+      <BlackHoleLightRays3D strength={strength} powerSave={powerSave} />
+      <LensedBackArc3D radius={8.9} powerSave={powerSave} />
+      <group ref={diskRef} rotation={[Math.PI / 2.72, 0.14, 0.04]}>
+        <AccretionDisk3D radius={8.6} powerSave={powerSave} />
+      </group>
+      <mesh renderOrder={8}>
+        <sphereGeometry args={[3.35, segments, segments]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+      <mesh renderOrder={7}>
+        <sphereGeometry args={[4.35, segments, segments]} />
+        <meshBasicMaterial color="#020006" transparent opacity={0.72} depthWrite={false} />
+      </mesh>
+      <mesh renderOrder={9}>
+        <torusGeometry args={[3.78, 0.075, powerSave ? 10 : 16, segments]} />
+        <meshBasicMaterial color="#fff1bd" transparent opacity={0.82} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <mesh renderOrder={6}>
+        <sphereGeometry args={[5.25, segments, segments]} />
+        <meshBasicMaterial color="#ff733c" transparent opacity={0.08} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function AccretionDisk3D({ radius, powerSave }: { radius: number; powerSave: boolean }) {
+  const segments = powerSave ? 128 : 220;
+  const hotFront = useMemo(
+    () =>
+      createArcRibbonGeometry({
+        radius: radius * 0.95,
+        thickness: 0.7,
+        start: Math.PI * 1.02,
+        end: Math.PI * 1.95,
+        lift: 0,
+        squash: 1,
+        z: 0.06,
+        segments: powerSave ? 56 : 112
+      }),
+    [radius, powerSave]
+  );
+
+  return (
+    <group>
+      <mesh>
+        <ringGeometry args={[radius * 0.55, radius * 1.72, segments]} />
+        <meshBasicMaterial color="#9d421c" transparent opacity={0.32} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <mesh>
+        <ringGeometry args={[radius * 0.64, radius * 1.2, segments]} />
+        <meshBasicMaterial color="#fff0a8" transparent opacity={0.56} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <mesh>
+        <ringGeometry args={[radius * 1.05, radius * 1.85, segments]} />
+        <meshBasicMaterial color="#ff5b24" transparent opacity={0.18} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <mesh geometry={hotFront}>
+        <meshBasicMaterial color="#fff6d2" transparent opacity={0.86} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function LensedBackArc3D({ radius, powerSave }: { radius: number; powerSave: boolean }) {
+  const goldArc = useMemo(
+    () =>
+      createArcRibbonGeometry({
+        radius,
+        thickness: 0.62,
+        start: Math.PI * 0.08,
+        end: Math.PI * 0.92,
+        lift: 2.25,
+        squash: 0.24,
+        z: -2.4,
+        segments: powerSave ? 56 : 112
+      }),
+    [radius, powerSave]
+  );
+  const redArc = useMemo(
+    () =>
+      createArcRibbonGeometry({
+        radius: radius * 0.88,
+        thickness: 0.32,
+        start: Math.PI * 0.13,
+        end: Math.PI * 0.87,
+        lift: 2.55,
+        squash: 0.2,
+        z: -2.25,
+        segments: powerSave ? 48 : 96
+      }),
+    [radius, powerSave]
+  );
+
+  return (
+    <group>
+      <mesh geometry={goldArc}>
+        <meshBasicMaterial color="#ffd176" transparent opacity={0.72} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      <mesh geometry={redArc}>
+        <meshBasicMaterial color="#ff7244" transparent opacity={0.36} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function BlackHoleLightRays3D({ strength, powerSave }: { strength: number; powerSave: boolean }) {
+  const rays = useMemo(() => createBlackHoleRayCurves(strength, powerSave), [strength, powerSave]);
+  return (
+    <group>
+      {rays.map((ray, index) => (
+        <group key={ray.id}>
+          <mesh geometry={ray.tube}>
+            <meshBasicMaterial color={ray.color} transparent opacity={ray.opacity} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+          <MovingPhoton curve={ray.curve} phase={index * 0.27} speed={ray.speed} powerSave={powerSave} />
+        </group>
+      ))}
     </group>
   );
 }
@@ -267,7 +449,7 @@ function MovingPhoton({
     ref.current.position.copy(point);
     const distance = Math.max(0.001, Math.sqrt(point.x ** 2 + point.y ** 2));
     const redshift = THREE.MathUtils.clamp(1 - distance / 30, 0, 1);
-    const scale = THREE.MathUtils.lerp(0.35, 0.74, redshift);
+    const scale = THREE.MathUtils.lerp(0.16, 0.36, redshift);
     ref.current.scale.setScalar(scale);
     if (material.current) {
       material.current.color.copy(new THREE.Color("#dff8ff").lerp(new THREE.Color("#ff6a36"), redshift * 0.9));
@@ -299,6 +481,7 @@ function PlanetMesh({
   selected,
   showLabel,
   powerSave,
+  simDays,
   onSelect
 }: {
   body: SolarBody;
@@ -307,6 +490,7 @@ function PlanetMesh({
   selected: boolean;
   showLabel: boolean;
   powerSave: boolean;
+  simDays: number;
   onSelect: () => void;
 }) {
   const mesh = useRef<THREE.Mesh>(null);
@@ -351,6 +535,7 @@ function PlanetMesh({
         </mesh>
       ) : null}
       {body.id === "saturn" ? <SaturnRings radius={radius} powerSave={powerSave} /> : null}
+      {selected ? <MoonSystem body={body} planetRadius={radius} simDays={simDays} powerSave={powerSave} showLabels={showLabel} /> : null}
       {selected ? (
         <mesh>
           <sphereGeometry args={[radius * 1.22, atmosphereSegments, atmosphereSegments]} />
@@ -367,31 +552,18 @@ function PlanetMesh({
 }
 
 function OrbitLine({
-  radius,
-  eccentricity,
+  points,
   color,
-  selected,
-  powerSave
+  selected
 }: {
-  radius: number;
-  eccentricity: number;
+  points: [number, number, number][];
   color: string;
   selected: boolean;
-  powerSave: boolean;
 }) {
-  const points = useMemo(() => {
-    const pointCount = powerSave ? 96 : 192;
-    return Array.from({ length: pointCount }, (_, index) => {
-      const angle = (index / (pointCount - 1)) * Math.PI * 2;
-      return new THREE.Vector3(
-        radius * (Math.cos(angle) - eccentricity * 0.4),
-        0,
-        radius * Math.sqrt(Math.max(0.05, 1 - eccentricity ** 2)) * Math.sin(angle)
-      );
-    });
-  }, [radius, eccentricity, powerSave]);
-
-  const geometry = useMemo(() => new THREE.BufferGeometry().setFromPoints(points), [points]);
+  const geometry = useMemo(
+    () => new THREE.BufferGeometry().setFromPoints(points.map((point) => new THREE.Vector3(...point))),
+    [points]
+  );
   const line = useMemo(() => {
     return new THREE.Line(
       geometry,
@@ -428,6 +600,80 @@ function SaturnRings({ radius, powerSave }: { radius: number; powerSave: boolean
       <ringGeometry args={[radius * 1.45, radius * 2.35, powerSave ? 56 : 96]} />
       <meshBasicMaterial color="#e9d6a6" transparent opacity={0.58} side={THREE.DoubleSide} />
     </mesh>
+  );
+}
+
+function MoonSystem({
+  body,
+  planetRadius,
+  simDays,
+  powerSave,
+  showLabels
+}: {
+  body: SolarBody;
+  planetRadius: number;
+  simDays: number;
+  powerSave: boolean;
+  showLabels: boolean;
+}) {
+  const moons = naturalSatellites.filter((moon) => moon.parentId === body.id).slice(0, powerSave ? 4 : 6);
+  if (moons.length === 0) return null;
+
+  return (
+    <group rotation={[0.18, 0.1, 0.08]}>
+      {moons.map((moon, index) => {
+        const orbitRadius = moonDisplayRadius(body, planetRadius, moon.semiMajorAxisKm);
+        const direction = moon.orbitalPeriodDays < 0 ? -1 : 1;
+        const angle = direction * (simDays / Math.abs(moon.orbitalPeriodDays)) * Math.PI * 2 + index * 0.88;
+        const moonRadius = THREE.MathUtils.clamp(
+          Math.cbrt(moon.radiusKm / Math.max(1, body.radiusKm)) * planetRadius * 0.34,
+          0.055,
+          planetRadius * 0.24
+        );
+        const x = Math.cos(angle) * orbitRadius;
+        const z = Math.sin(angle) * orbitRadius;
+
+        return (
+          <group key={moon.id}>
+            <MoonOrbit radius={orbitRadius} color={moon.color} powerSave={powerSave} />
+            <mesh position={[x, 0, z]}>
+              <sphereGeometry args={[moonRadius, powerSave ? 10 : 16, powerSave ? 10 : 16]} />
+              <meshStandardMaterial color={moon.color} roughness={0.78} emissive={moon.color} emissiveIntensity={0.04} />
+            </mesh>
+            {showLabels ? (
+              <Html position={[x, moonRadius + 0.2, z]} center distanceFactor={14}>
+                <span className="scene-label moon-label">{moon.name}</span>
+              </Html>
+            ) : null}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+function MoonOrbit({ radius, color, powerSave }: { radius: number; color: string; powerSave: boolean }) {
+  const geometry = useMemo(() => {
+    const points = Array.from({ length: powerSave ? 72 : 120 }, (_, index) => {
+      const angle = (index / (powerSave ? 71 : 119)) * Math.PI * 2;
+      return new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+    });
+    return new THREE.BufferGeometry().setFromPoints(points);
+  }, [radius, powerSave]);
+
+  return (
+    <primitive
+      object={
+        new THREE.Line(
+          geometry,
+          new THREE.LineBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.28
+          })
+        )
+      }
+    />
   );
 }
 
@@ -897,6 +1143,40 @@ function createArcRibbonGeometry({
   return geometry;
 }
 
+function createBlackHoleRayCurves(strength: number, powerSave: boolean) {
+  const bend = THREE.MathUtils.lerp(1.5, 5.2, strength);
+  const makeCurve = (id: string, y: number, z: number, color: string, opacity: number, speed: number) => {
+    const sign = Math.sign(y) || 1;
+    const near = sign * (5.2 + bend * 0.42);
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-18, y, z),
+      new THREE.Vector3(-10, y * 0.96, z * 0.7),
+      new THREE.Vector3(-5.4, near, z * 0.35),
+      new THREE.Vector3(0, near + sign * bend * 0.18, 0),
+      new THREE.Vector3(5.4, near, -z * 0.35),
+      new THREE.Vector3(10, y * 0.8, -z * 0.7),
+      new THREE.Vector3(18, y * 0.52, -z)
+    ]);
+    return buildRayRenderData(id, curve, color, opacity, speed, powerSave ? 0.035 : 0.045, powerSave);
+  };
+
+  const skimPoints: THREE.Vector3[] = [new THREE.Vector3(-18, 3.7, 2.5), new THREE.Vector3(-10, 4.5, 1.4)];
+  const radius = THREE.MathUtils.lerp(5.9, 5.0, strength);
+  for (let index = 0; index <= 32; index += 1) {
+    const t = index / 32;
+    const angle = THREE.MathUtils.lerp(Math.PI * 0.78, Math.PI * -0.24, t);
+    skimPoints.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, Math.sin(t * Math.PI) * 1.8));
+  }
+  skimPoints.push(new THREE.Vector3(10, -4.1, -1.4), new THREE.Vector3(18, -2.4, -2.5));
+
+  return [
+    makeCurve("upper-ray", 7.2, 3.4, "#dff8ff", 0.42, 0.13),
+    makeCurve("lower-ray", -6.4, -3.0, "#7df9ff", 0.3, 0.12),
+    makeCurve("warm-ray", 4.9, -2.6, "#fff2bd", 0.55, 0.17),
+    buildRayRenderData("photon-sphere-skim-3d", new THREE.CatmullRomCurve3(skimPoints), "#ffd176", 0.66, 0.11, powerSave ? 0.04 : 0.052, powerSave)
+  ];
+}
+
 function createLensingRayCurves(strength: number, powerSave: boolean) {
   const bend = THREE.MathUtils.lerp(2.4, 9.4, strength);
   const pinch = THREE.MathUtils.lerp(9.8, 7.3, strength);
@@ -1248,8 +1528,37 @@ function orbitScale(au: number, distanceScale: number) {
   return au <= 1.7 ? au * distanceScale * 2.4 : 4.5 + Math.sqrt(au) * distanceScale * 1.15;
 }
 
-function tangentVector(angle: number, magnitude: number): [number, number] {
-  return [-Math.sin(angle) * magnitude, Math.cos(angle) * magnitude];
+function displayOrbitPositionFromAu(position: Vector3Au, body: SolarBody, distanceScale: number): [number, number, number] {
+  if (body.semiMajorAxisAu <= 0) return [0, 0, 0];
+  const factor = orbitScale(body.semiMajorAxisAu, distanceScale) / body.semiMajorAxisAu;
+  return [position.x * factor, position.z * factor, position.y * factor];
+}
+
+function editedEarthBody(body: SolarBody, earth: EditedEarthState): SolarBody {
+  return {
+    ...body,
+    massKg: earth.massKg,
+    radiusKm: earth.radiusKm,
+    semiMajorAxisAu: earth.orbitalDistanceAu,
+    orbitalSpeedKmS: earth.orbitalSpeedKmS,
+    orbitalPeriodDays: editedOrbitalPeriodDays(body, earth.orbitalDistanceAu)
+  };
+}
+
+function editedOrbitalPeriodDays(body: SolarBody, semiMajorAxisAu: number) {
+  if (!body.orbitalPeriodDays || !body.semiMajorAxisAu) return body.orbitalPeriodDays;
+  return body.orbitalPeriodDays * Math.pow(semiMajorAxisAu / body.semiMajorAxisAu, 1.5);
+}
+
+function moonDisplayRadius(body: SolarBody, planetRadius: number, semiMajorAxisKm: number) {
+  const ratio = semiMajorAxisKm / Math.max(1, body.radiusKm);
+  return planetRadius * (2.2 + Math.sqrt(ratio) * 0.62);
+}
+
+function moonFocusRadius(body: SolarBody) {
+  const largestMoonOrbit = Math.max(0, ...naturalSatellites.filter((moon) => moon.parentId === body.id).map((moon) => moon.semiMajorAxisKm));
+  if (!largestMoonOrbit) return 0;
+  return moonDisplayRadius(body, visualRadius(body), largestMoonOrbit);
 }
 
 function lighten(hex: string, amount: number) {

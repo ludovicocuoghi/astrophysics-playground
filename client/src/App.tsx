@@ -16,6 +16,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AU_KM, SCALE_OPTIONS, type ScaleMode } from "../../shared/src/constants";
 import { guidedLessons, practicePrompts } from "../../shared/src/lessons";
 import {
+  aphelionAu,
+  dateFromDaysSinceJ2000,
+  dateInputFromDaysSinceJ2000,
+  daysSinceJ2000FromDateInput,
+  daysSinceJ2000Now,
+  distanceAu,
+  heliocentricPositionAu,
+  julianDateFromDaysSinceJ2000,
+  perihelionAu,
+  radiusAu
+} from "../../shared/src/orbits";
+import {
   calculateEarthPhysics,
   calculateRelativity,
   densityMassKg,
@@ -43,9 +55,10 @@ const initialSceneOptions = readInitialSceneOptions();
 export function App() {
   const [mode, setMode] = useState<SceneMode>(initialSceneOptions.mode);
   const [selectedId, setSelectedId] = useState(initialSceneOptions.selectedId);
+  const [focusToken, setFocusToken] = useState(0);
   const autoPauseArmed = useRef(true);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [simDays, setSimDays] = useState(0);
+  const [simDays, setSimDays] = useState(initialSceneOptions.epochDays);
   const [timeScale, setTimeScale] = useState(36);
   const [scaleMode, setScaleMode] = useState<ScaleMode>(initialSceneOptions.scaleMode);
   const [showLabels, setShowLabels] = useState(initialSceneOptions.showLabels);
@@ -100,6 +113,11 @@ export function App() {
       }
       return next;
     });
+  };
+
+  const selectBody = (id: string) => {
+    setSelectedId(id);
+    setFocusToken((value) => value + 1);
   };
 
   const sendChat = async (prompt = chatInput) => {
@@ -158,7 +176,8 @@ export function App() {
         powerSave={powerSave}
         earth={earth}
         blackHole={blackHole}
-        onSelectBody={setSelectedId}
+        focusToken={focusToken}
+        onSelectBody={selectBody}
       />
 
       <header className="topbar">
@@ -188,10 +207,17 @@ export function App() {
           <IconButton label="Reverse time direction" onClick={() => setTimeScale((value) => -value)}>
             <RotateCcw size={18} />
           </IconButton>
-          <IconButton label="Jump to current epoch" onClick={() => setSimDays(0)}>
+          <IconButton label="Jump to today's date" onClick={() => setSimDays(daysSinceJ2000Now())}>
             <RefreshCcw size={18} />
           </IconButton>
         </div>
+        <label className="date-line">
+          <span>
+            Epoch date
+            <strong>{formatEpochDate(simDays)}</strong>
+          </span>
+          <input type="date" value={dateInputFromDaysSinceJ2000(simDays)} onChange={(event) => setSimDays(daysSinceJ2000FromDateInput(event.target.value))} />
+        </label>
         <Range
           label="Simulation speed"
           value={timeScale}
@@ -212,6 +238,9 @@ export function App() {
             </button>
           ))}
         </div>
+        <div className="scale-note">
+          Solar positions use JPL Keplerian elements. Distance modes are visual compression; readouts keep physical AU and km.
+        </div>
         <label className="check-line">
           <input type="checkbox" checked={showLabels} onChange={(event) => setShowLabels(event.target.checked)} />
           Planet labels
@@ -231,7 +260,7 @@ export function App() {
               key={body.id}
               className={selectedId === body.id ? "selected" : ""}
               onClick={() => {
-                setSelectedId(body.id);
+                selectBody(body.id);
                 setMode("solar");
               }}
             >
@@ -313,7 +342,8 @@ function readInitialSceneOptions() {
     scaleMode: "compressed" as ScaleMode,
     showLabels: true,
     showVectors: true,
-    powerSave: true
+    powerSave: true,
+    epochDays: daysSinceJ2000Now()
   };
   if (typeof window === "undefined") return fallback;
 
@@ -321,22 +351,32 @@ function readInitialSceneOptions() {
   const mode = params.get("mode") === "black-hole" ? "black-hole" : fallback.mode;
   const selected = params.get("selected");
   const scale = params.get("scale");
+  const date = params.get("date");
   return {
     mode,
     selectedId: solarBodies.some((body) => body.id === selected) ? selected! : fallback.selectedId,
     scaleMode: SCALE_OPTIONS.some((option) => option.id === scale) ? (scale as ScaleMode) : fallback.scaleMode,
     showLabels: params.get("labels") !== "off",
     showVectors: params.get("vectors") !== "off",
-    powerSave: params.get("quality") !== "high"
+    powerSave: params.get("quality") !== "high",
+    epochDays: date ? daysSinceJ2000FromDateInput(date) : fallback.epochDays
   };
 }
 
 function BodyInspector({ body, earth, simDays }: { body: SolarBody; earth: EditedEarthState; simDays: number }) {
   const displayBody =
     body.id === "earth"
-      ? { ...body, radiusKm: earth.radiusKm, massKg: earth.massKg, semiMajorAxisAu: earth.orbitalDistanceAu, orbitalSpeedKmS: earth.orbitalSpeedKmS }
+      ? {
+          ...body,
+          radiusKm: earth.radiusKm,
+          massKg: earth.massKg,
+          semiMajorAxisAu: earth.orbitalDistanceAu,
+          orbitalSpeedKmS: earth.orbitalSpeedKmS,
+          orbitalPeriodDays: editedOrbitalPeriodDays(body, earth.orbitalDistanceAu)
+        }
       : body;
   const distanceFromEarthKm = distanceFromEarth(displayBody, earth, simDays);
+  const currentSunDistanceAu = radiusAu(heliocentricPositionAu(displayBody, simDays));
   const earthRotationHours = Math.abs(solarBodies.find((item) => item.id === "earth")!.rotationPeriodHours);
   const bodyRotationHours = Math.abs(displayBody.rotationPeriodHours);
   const rotationDirection = displayBody.rotationPeriodHours < 0 ? "retrograde" : "prograde";
@@ -352,9 +392,12 @@ function BodyInspector({ body, earth, simDays }: { body: SolarBody; earth: Edite
       <Readout label="Radius" value={`${formatNumber(displayBody.radiusKm)} km`} />
       <Readout label="Radius vs Earth" value={`${formatNumber(radiusVsEarth, radiusVsEarth < 0.01 ? 4 : 3)} x`} />
       <Readout label="Distance from Earth" value={formatDistance(distanceFromEarthKm)} />
-      <Readout label="Orbital distance" value={`${formatNumber(displayBody.semiMajorAxisAu, 3)} AU`} />
+      <Readout label="Current Sun distance" value={displayBody.id === "sun" ? "0 AU" : `${formatNumber(currentSunDistanceAu, 4)} AU`} />
+      <Readout label="Semi-major axis" value={`${formatNumber(displayBody.semiMajorAxisAu, 4)} AU`} />
+      <Readout label="Perihelion / aphelion" value={displayBody.id === "sun" ? "n/a" : `${formatNumber(perihelionAu(displayBody), 4)} / ${formatNumber(aphelionAu(displayBody), 4)} AU`} />
       <Readout label="Orbital speed" value={`${formatNumber(displayBody.orbitalSpeedKmS, 2)} km/s`} />
-      <Readout label="Orbital period" value={`${formatNumber(displayBody.orbitalPeriodDays)} days`} />
+      <Readout label="Orbital period / year" value={`${formatNumber(displayBody.orbitalPeriodDays, 1)} days (${formatNumber(displayBody.orbitalPeriodDays / 365.256, 3)} Earth years)`} />
+      <Readout label="Epoch / Julian day" value={`${formatEpochDate(simDays)} / JD ${formatNumber(julianDateFromDaysSinceJ2000(simDays), 1)}`} />
       <Readout label="One rotation" value={`${formatRotation(bodyRotationHours)} (${formatNumber(bodyRotationHours / earthRotationHours, 2)} Earth days)`} />
       <Readout label="Rotation direction" value={rotationDirection} />
       <Readout label="Surface gravity" value={`${formatNumber(surfaceGravity(displayBody.massKg, displayBody.radiusKm), 2)} m/s^2`} />
@@ -528,28 +571,19 @@ function distanceFromEarth(body: SolarBody, earth: EditedEarthState, simDays: nu
     massKg: earth.massKg,
     radiusKm: earth.radiusKm,
     semiMajorAxisAu: earth.orbitalDistanceAu,
-    orbitalSpeedKmS: earth.orbitalSpeedKmS
+    orbitalSpeedKmS: earth.orbitalSpeedKmS,
+    orbitalPeriodDays: editedOrbitalPeriodDays(earthBody, earth.orbitalDistanceAu)
   };
-  const bodyPosition = approximateOrbitPositionAu(body, simDays);
-  const earthPosition = approximateOrbitPositionAu(earthDisplay, simDays);
-  const dx = bodyPosition.x - earthPosition.x;
-  const dy = bodyPosition.y - earthPosition.y;
-  const dz = bodyPosition.z - earthPosition.z;
-  return Math.sqrt(dx ** 2 + dy ** 2 + dz ** 2) * AU_KM;
+  return distanceAu(heliocentricPositionAu(body, simDays), heliocentricPositionAu(earthDisplay, simDays)) * AU_KM;
 }
 
-function approximateOrbitPositionAu(body: SolarBody, simDays: number) {
-  if (body.id === "sun" || body.orbitalPeriodDays === 0) {
-    return { x: 0, y: 0, z: 0 };
-  }
-  const planetIndex = Math.max(0, solarBodies.filter((item) => item.id !== "sun").findIndex((item) => item.id === body.id));
-  const angle = (simDays / body.orbitalPeriodDays) * Math.PI * 2 + planetIndex * 0.72;
-  const e = body.eccentricity;
-  return {
-    x: body.semiMajorAxisAu * (Math.cos(angle) - e * 0.4),
-    y: Math.sin(body.inclinationDeg * (Math.PI / 180)) * Math.sin(angle) * 0.03,
-    z: body.semiMajorAxisAu * Math.sqrt(Math.max(0.05, 1 - e ** 2)) * Math.sin(angle)
-  };
+function editedOrbitalPeriodDays(body: SolarBody, semiMajorAxisAu: number) {
+  if (!body.orbitalPeriodDays || !body.semiMajorAxisAu) return body.orbitalPeriodDays;
+  return body.orbitalPeriodDays * Math.pow(semiMajorAxisAu / body.semiMajorAxisAu, 1.5);
+}
+
+function formatEpochDate(daysSinceJ2000: number) {
+  return dateFromDaysSinceJ2000(daysSinceJ2000).toISOString().slice(0, 10);
 }
 
 function formatDistance(distanceKm: number) {
