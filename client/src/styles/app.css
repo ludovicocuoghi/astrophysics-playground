@@ -1,0 +1,569 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #03050b;
+  color: #edf6ff;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #03050b;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.app-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 720px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(50, 90, 160, 0.16), transparent 42%),
+    #03050b;
+}
+
+.space-canvas {
+  position: absolute !important;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.topbar {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  right: 22px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.brand-mark,
+.mode-switch,
+.panel,
+.lesson-strip {
+  border: 1px solid rgba(168, 204, 255, 0.16);
+  background: linear-gradient(180deg, rgba(10, 17, 31, 0.88), rgba(5, 9, 17, 0.76));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: #f7fbff;
+  font-weight: 800;
+  letter-spacing: 0;
+  pointer-events: auto;
+}
+
+.mode-switch {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.mode-switch button,
+.segmented button,
+.planet-grid button,
+.prompt-row button,
+.reset-button {
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #b9c9e8;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.mode-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.mode-switch button.active,
+.segmented button.active,
+.planet-grid button.selected {
+  background: linear-gradient(135deg, rgba(125, 249, 255, 0.28), rgba(255, 92, 122, 0.18));
+  color: #ffffff;
+}
+
+.panel {
+  position: absolute;
+  z-index: 3;
+  border-radius: 8px;
+  padding: 14px;
+  pointer-events: auto;
+}
+
+.left-panel {
+  top: 82px;
+  left: 22px;
+  width: 312px;
+  max-height: calc(100vh - 442px);
+  overflow: auto;
+}
+
+.right-panel {
+  top: 82px;
+  right: 22px;
+  width: 330px;
+  max-height: calc(100vh - 400px);
+  overflow: auto;
+}
+
+.physics-panel {
+  left: 22px;
+  bottom: 24px;
+  width: min(640px, calc(100vw - 44px));
+  max-height: 36vh;
+  overflow: auto;
+}
+
+.tutor-panel {
+  right: 22px;
+  bottom: 24px;
+  width: min(440px, calc(100vw - 44px));
+  max-height: 34vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #eaf8ff;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.icon-button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+}
+
+.range-line {
+  display: block;
+  margin: 10px 0;
+}
+
+.range-line span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #b8caea;
+  font-size: 12px;
+}
+
+.range-line strong {
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.range-line input {
+  width: 100%;
+  accent-color: #7df9ff;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.segmented button {
+  min-height: 32px;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 28px;
+  color: #c9d8f4;
+  font-size: 13px;
+}
+
+.check-line input {
+  accent-color: #7df9ff;
+}
+
+.planet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.planet-grid button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.planet-grid span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.readout-list h2 {
+  margin: 0 0 7px;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.readout-list p {
+  margin: 0 0 12px;
+  color: #b7c8e8;
+  line-height: 1.45;
+  font-size: 13px;
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #aebfe0;
+  font-size: 12px;
+}
+
+.readout strong {
+  color: #ffffff;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 8px 18px;
+}
+
+.editor-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.reset-button {
+  min-height: 36px;
+  padding: 0 12px;
+  background: rgba(255, 92, 122, 0.18);
+  color: #ffe4ea;
+  border: 1px solid rgba(255, 92, 122, 0.24);
+}
+
+.stability,
+.warning,
+.formula-card {
+  border-radius: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #dce9ff;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stability.stable {
+  border-color: rgba(125, 249, 255, 0.32);
+}
+
+.stability.slow,
+.stability.fast,
+.warning {
+  border-color: rgba(255, 92, 122, 0.4);
+  color: #ffd6de;
+}
+
+.formula-card {
+  display: grid;
+  gap: 4px;
+}
+
+.formula-card strong {
+  color: #ffffff;
+}
+
+.prompt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prompt-row button {
+  min-height: 28px;
+  padding: 0 8px;
+  color: #d7e5ff;
+  font-size: 11px;
+}
+
+.chat-log {
+  min-height: 120px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.chat-message {
+  border-radius: 8px;
+  padding: 9px 10px;
+  line-height: 1.42;
+  font-size: 12px;
+  color: #dfebff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.chat-message.user {
+  background: rgba(125, 249, 255, 0.14);
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: 1fr 38px;
+  gap: 7px;
+}
+
+.chat-form input {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.24);
+  color: #ffffff;
+  padding: 0 11px;
+  outline: none;
+}
+
+.chat-form button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: #7df9ff;
+  color: #031018;
+  cursor: pointer;
+}
+
+.lesson-strip {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 2;
+  width: min(440px, calc(100vw - 780px));
+  max-height: 144px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(160px, 1fr);
+  gap: 8px;
+  overflow-x: auto;
+  border-radius: 8px;
+  padding: 9px;
+  pointer-events: auto;
+}
+
+.lesson-strip article {
+  display: grid;
+  gap: 4px;
+  min-width: 160px;
+  border-radius: 7px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lesson-strip strong {
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.lesson-strip span {
+  color: #b9c9e8;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.scene-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  max-width: 150px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(6, 11, 22, 0.75);
+  color: #f8fbff;
+  padding: 0 9px;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.scene-label.hot {
+  color: #ffd7c4;
+  border-color: rgba(255, 152, 84, 0.42);
+}
+
+.scene-label.purple {
+  color: #dfd4ff;
+  border-color: rgba(157, 124, 255, 0.42);
+}
+
+.scene-label.cyan {
+  color: #d1feff;
+  border-color: rgba(125, 249, 255, 0.42);
+}
+
+.scene-label.red {
+  color: #ffd9df;
+  border-color: rgba(255, 92, 122, 0.52);
+}
+
+.scene-label.gold {
+  color: #fff0bd;
+  border-color: rgba(255, 178, 91, 0.52);
+}
+
+@media (max-width: 1500px) {
+  .lesson-strip {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .right-panel {
+    width: 300px;
+  }
+
+  .left-panel {
+    width: 294px;
+  }
+
+}
+
+@media (max-width: 860px) {
+  body {
+    overflow: auto;
+  }
+
+  .app-shell {
+    min-height: 1260px;
+    overflow: hidden auto;
+  }
+
+  .topbar {
+    position: relative;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 14px;
+    align-items: stretch;
+    flex-direction: column;
+    pointer-events: auto;
+  }
+
+  .mode-switch {
+    width: 100%;
+  }
+
+  .mode-switch button {
+    flex: 1;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  .space-canvas {
+    height: 610px !important;
+  }
+
+  .panel {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    width: calc(100% - 28px);
+    max-height: none;
+    margin: 12px 14px;
+  }
+
+  .left-panel {
+    margin-top: 510px;
+  }
+
+  .physics-panel,
+  .tutor-panel {
+    width: calc(100% - 28px);
+  }
+
+  .editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .planet-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
