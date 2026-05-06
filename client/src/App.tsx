@@ -38,17 +38,19 @@ const defaultBlackHole: BlackHoleState = {
   launchDistanceAu: 1
 };
 
+const initialSceneOptions = readInitialSceneOptions();
+
 export function App() {
-  const [mode, setMode] = useState<SceneMode>("solar");
-  const [selectedId, setSelectedId] = useState("earth");
+  const [mode, setMode] = useState<SceneMode>(initialSceneOptions.mode);
+  const [selectedId, setSelectedId] = useState(initialSceneOptions.selectedId);
   const autoPauseArmed = useRef(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [simDays, setSimDays] = useState(0);
   const [timeScale, setTimeScale] = useState(36);
-  const [scaleMode, setScaleMode] = useState<ScaleMode>("compressed");
-  const [showLabels, setShowLabels] = useState(true);
-  const [showVectors, setShowVectors] = useState(true);
-  const [powerSave, setPowerSave] = useState(true);
+  const [scaleMode, setScaleMode] = useState<ScaleMode>(initialSceneOptions.scaleMode);
+  const [showLabels, setShowLabels] = useState(initialSceneOptions.showLabels);
+  const [showVectors, setShowVectors] = useState(initialSceneOptions.showVectors);
+  const [powerSave, setPowerSave] = useState(initialSceneOptions.powerSave);
   const [earth, setEarth] = useState<EditedEarthState>(earthDefaults);
   const [blackHole, setBlackHole] = useState<BlackHoleState>(defaultBlackHole);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -302,6 +304,31 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function readInitialSceneOptions() {
+  const fallback = {
+    mode: "solar" as SceneMode,
+    selectedId: "earth",
+    scaleMode: "compressed" as ScaleMode,
+    showLabels: true,
+    showVectors: true,
+    powerSave: true
+  };
+  if (typeof window === "undefined") return fallback;
+
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get("mode") === "black-hole" ? "black-hole" : fallback.mode;
+  const selected = params.get("selected");
+  const scale = params.get("scale");
+  return {
+    mode,
+    selectedId: solarBodies.some((body) => body.id === selected) ? selected! : fallback.selectedId,
+    scaleMode: SCALE_OPTIONS.some((option) => option.id === scale) ? (scale as ScaleMode) : fallback.scaleMode,
+    showLabels: params.get("labels") !== "off",
+    showVectors: params.get("vectors") !== "off",
+    powerSave: params.get("quality") !== "high"
+  };
 }
 
 function BodyInspector({ body, earth, simDays }: { body: SolarBody; earth: EditedEarthState; simDays: number }) {
